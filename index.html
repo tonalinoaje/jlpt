@@ -176,17 +176,11 @@ async function ingest(fileList){
 /* ============ 媒体解析 ============ */
 function mediaUrl(rel, dir){
   if (!rel) return null;
-  const full = dir ? `${dir}/${rel}` : rel;           // 拼上子目录
 
-  let hit = S.assets.get(full) || S.assets.get(rel);
-  if (!hit){
-    const ks = [...S.assets.keys()].filter(k => k.endsWith(full) || k.endsWith(rel));
-    if (ks.length === 1) hit = S.assets.get(ks[0]);
-  }
-  if (hit) return URL.createObjectURL(hit);
+  if (/^https?:\/\//.test(rel)) return rel;
 
-  if (location.protocol !== 'file:') return full;     // 服务器模式直接用相对路径
-  return null;
+  const full = dir ? `${dir}/${rel}` : rel;
+  return full; 
 }
 /* ============ 渲染 ============ */
 function esc(s){ return String(s).replace(/[&<>"]/g, c =>
@@ -297,6 +291,7 @@ function render(){
   const q = S.query.trim();
 
   exam.data.sections.forEach((sec, si) => {
+    if (Number(sec.questionType) >= 40) return;   // ← 新增：跳过听力题
     const secEl = document.createElement('section');
     secEl.className = 'section';
     secEl.id = 'sec-' + si;
@@ -348,18 +343,21 @@ function render(){
 function updateStat(){
   if (!S.cur) return;
   let total = 0, done = 0, right = 0;
-  S.cur.data.sections.forEach(sec => (sec.questions||[]).forEach(node => {
-    const list = (node.questions && node.questions.length) ? node.questions : [node];
-    list.forEach(q => {
-      if (!q.options) return;
-      total++;
-      const a = S.answers[q.identity];
-      if (a !== undefined){
-        done++;
-        if (a === Number(q.answer)) right++;
-      }
+  S.cur.data.sections.forEach(sec => {
+    if (Number(sec.questionType) >= 40) return;   // ← 跳过听力 section
+    (sec.questions || []).forEach(node => {
+      const list = (node.questions && node.questions.length) ? node.questions : [node];
+      list.forEach(q => {
+        if (!q.options) return;
+        total++;
+        const a = S.answers[q.identity];
+        if (a !== undefined){
+          done++;
+          if (a === Number(q.answer)) right++;
+        }
+      });
     });
-  }));
+  });
   $('stat').textContent =
     `已答 ${done}/${total}` + (done ? `　正确率 ${Math.round(right/done*100)}%` : '');
 }
