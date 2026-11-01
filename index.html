@@ -203,8 +203,8 @@ function renderQuestion(q, subLabel){
   el.appendChild(head);
 
   // 图片
-  if (q.image, S.cur.dir){
-    const u = mediaUrl(q.image);
+  if (q.image){
+    const u = mediaUrl(q.image, S.cur.dir);
     if (u){
       const img = document.createElement('img');
       img.className = 'q-img'; img.src = u; img.alt = '题目图片';
@@ -216,8 +216,8 @@ function renderQuestion(q, subLabel){
   }
 
   // 音频
-  if (q.audio, S.cur.dir){
-    const u = mediaUrl(q.audio);
+  if (q.audio){
+    const u = mediaUrl(q.audio，S.cur.dir);
     if (u){
       const au = document.createElement('audio');
       au.controls = true; au.preload = 'none'; au.src = u;
