@@ -174,20 +174,20 @@ async function ingest(fileList){
 }
 
 /* ============ 媒体解析 ============ */
-function mediaUrl(rel){
+function mediaUrl(rel, dir){
   if (!rel) return null;
-  // 1) File API
-  let hit = S.assets.get(rel);
-  if (!hit){                       // 后缀模糊匹配
-    const ks = [...S.assets.keys()].filter(k => k.endsWith(rel));
+  const full = dir ? `${dir}/${rel}` : rel;           // 拼上子目录
+
+  let hit = S.assets.get(full) || S.assets.get(rel);
+  if (!hit){
+    const ks = [...S.assets.keys()].filter(k => k.endsWith(full) || k.endsWith(rel));
     if (ks.length === 1) hit = S.assets.get(ks[0]);
   }
   if (hit) return URL.createObjectURL(hit);
-  // 2) 本地服务器：直接用相对路径
-  if (location.protocol !== 'file:') return rel;
-  return null;                     // file:// 且未选文件夹
-}
 
+  if (location.protocol !== 'file:') return full;     // 服务器模式直接用相对路径
+  return null;
+}
 /* ============ 渲染 ============ */
 function esc(s){ return String(s).replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -209,7 +209,7 @@ function renderQuestion(q, subLabel){
   el.appendChild(head);
 
   // 图片
-  if (q.image){
+  if (q.image, S.cur.dir){
     const u = mediaUrl(q.image);
     if (u){
       const img = document.createElement('img');
@@ -222,7 +222,7 @@ function renderQuestion(q, subLabel){
   }
 
   // 音频
-  if (q.audio){
+  if (q.audio, S.cur.dir){
     const u = mediaUrl(q.audio);
     if (u){
       const au = document.createElement('audio');
@@ -402,46 +402,59 @@ $('search').oninput = e => {
   clearTimeout(t);
   t = setTimeout(() => { S.query = e.target.value; render(); }, 200);
 };
-/* ===== 自动发现题库（GitHub Pages 模式）===== */
+/* ===== 递归加载所有子目录里的 JSON ===== */
 (async function bootstrap(){
-  if (location.protocol === 'file:') return;          // 本地文件模式跳过
+  if (location.protocol === 'file:') return;
   const m = location.hostname.match(/^([^.]+)\.github\.io$/);
-  if (!m) return;                                      // 不是 GitHub Pages
+  if (!m) return;
   const user = m[1];
   const repo = location.pathname.split('/').filter(Boolean)[0];
   if (!repo) return;
 
   try {
-    const api = `https://api.github.com/repos/${user}/${repo}/contents/`;
-    const r = await fetch(api);
-    if (!r.ok) return;
-    const items = await r.json();
-    const jsons = items.filter(i => i.type === 'file' && /\.json$/i.test(i.name));
+    // 一次 API 调用拿到整棵仓库的文件树
+    const r = await fetch(
+      `https://api.github.com/repos/${user}/${repo}/git/trees/main?recursive=1`,
+      {cache:'no-cache'}
+    );
+    if (!r.ok) throw new Error('GitHub API ' + r.status);
+    const { tree } = await r.json();
+
+    // 挑出所有 .json 文件，路径形如 "2011-07/2011-07_N2.json"
+    const jsons = tree.filter(t => t.type === 'blob' && /\.json$/i.test(t.path));
 
     for (const it of jsons){
       try {
-        const resp = await fetch(it.download_url);
+        const resp = await fetch(it.path, {cache:'no-cache'});
+        if (!resp.ok) continue;
         const data = await resp.json();
         if (!data.sections) continue;
+        const dir = it.path.includes('/') ? it.path.slice(0, it.path.lastIndexOf('/')) : '';
         S.exams.push({
-          name: (data.base && data.base.title) || it.name.replace(/\.json$/i,''),
-          dir: '',
+          name: (data.base && data.base.title) || it.path,
+          dir,                                       // ← 关键：记住子目录
           data
         });
-      } catch(e){ console.warn('skip', it.name, e); }
+      } catch(e){ console.warn('skip', it.path, e); }
     }
 
-    if (S.exams.length){
-      S.exams.sort((a,b) => a.name.localeCompare(b.name, 'ja'));
-      $('drop').classList.add('hidden');
-      $('layout').classList.remove('hidden');
-      const sel = $('examSel');
-      sel.innerHTML = S.exams.map((e,i)=>`<option value="${i}">${e.name}</option>`).join('');
-      sel.value = S.exams.length - 1;
-      S.cur = S.exams[sel.value];
-      render();
+    if (!S.exams.length){
+      alert('没有加载到任何题库');
+      return;
     }
-  } catch(e){ console.warn('autoDiscover failed', e); }
+
+    S.exams.sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+    $('drop').classList.add('hidden');
+    $('layout').classList.remove('hidden');
+    const sel = $('examSel');
+    sel.innerHTML = S.exams.map((e,i)=>`<option value="${i}">${e.name}</option>`).join('');
+    sel.value = S.exams.length - 1;
+    S.cur = S.exams[sel.value];
+    render();
+  } catch(e){
+    console.error(e);
+    alert('加载失败: ' + e.message);
+  }
 })();
 </script>
 </body>
