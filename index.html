@@ -217,7 +217,7 @@ function renderQuestion(q, subLabel){
 
   // 音频
   if (q.audio){
-    const u = mediaUrl(q.audio，S.cur.dir);
+    const u = mediaUrl(q.audio, S.cur.dir);
     if (u){
       const au = document.createElement('audio');
       au.controls = true; au.preload = 'none'; au.src = u;
