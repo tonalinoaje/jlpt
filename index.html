@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JLPT N2 题库查看器</title>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#fff; --ink:#1f2937; --muted:#6b7280;
+    --line:#e5e7eb; --accent:#3b5bdb; --soft:#eef2ff;
+    --ok:#15803d; --okbg:#dcfce7; --bad:#b91c1c; --badbg:#fee2e2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.85;
+    font-family:"Hiragino Sans","Yu Gothic",Meiryo,system-ui,"Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .bar{max-width:1180px;margin:0 auto;padding:10px 18px;display:flex;
+    gap:12px;align-items:center;flex-wrap:wrap}
+  .bar h1{margin:0;font-size:17px;font-weight:800}
+  select,input[type=search]{font:inherit;font-size:14px;padding:6px 10px;
+    border:1px solid var(--line);border-radius:9px;background:#fff;color:inherit}
+  input[type=search]{min-width:180px}
+  .btn{font:inherit;font-size:14px;padding:6px 14px;border-radius:9px;
+    border:1px solid var(--accent);background:var(--accent);color:#fff;
+    font-weight:600;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--accent)}
+  .btn:active{transform:translateY(1px)}
+  .stat{font-size:13px;color:var(--muted);margin-left:auto}
+
+  .layout{max-width:1180px;margin:0 auto;padding:20px 18px 100px;
+    display:grid;grid-template-columns:210px minmax(0,1fr);gap:22px;align-items:start}
+  .toc{position:sticky;top:80px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:12px;font-size:14px}
+  .toc a{display:block;padding:5px 10px;border-radius:8px;color:#4b5563;
+    text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .toc a:hover{background:var(--soft);color:var(--accent)}
+
+  .section{background:var(--card);border-radius:14px;padding:20px 24px;
+    margin-bottom:20px;box-shadow:0 1px 3px rgba(16,24,40,.07)}
+  .section-title{margin:0 0 14px;padding-left:12px;border-left:4px solid var(--accent);
+    font-size:14px;font-weight:700;color:#4b5563;white-space:pre-line}
+
+  .q{padding:16px 0;border-top:1px dashed #e8ecf1}
+  .q:first-of-type{border-top:0}
+  .q-head{display:flex;gap:10px;align-items:flex-start}
+  .q-num{flex:none;min-width:26px;height:26px;margin-top:3px;padding:0 6px;
+    border-radius:999px;background:var(--accent);color:#fff;font-size:12px;
+    font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+  .q-title{font-size:16px;white-space:pre-line;word-break:break-word}
+  .q-title u,.passage u{text-decoration:underline;
+    text-decoration-color:var(--accent);text-underline-offset:3px}
+  .passage{background:#f8fafc;border:1px solid var(--line);border-radius:12px;
+    padding:14px 18px;margin:10px 0 14px;font-size:15px}
+  .passage p{margin:0 0 8px}.passage p:last-child{margin:0}
+
+  .options{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .opt{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;
+    font:inherit;color:inherit;padding:9px 13px;border:1px solid var(--line);
+    border-radius:10px;background:#fafbfc;cursor:pointer;transition:.13s}
+  .opt:hover{border-color:var(--accent);background:var(--soft)}
+  .opt-n{flex:none;width:22px;height:22px;margin-top:3px;border-radius:6px;
+    background:#e5e7eb;color:#4b5563;font-size:12px;font-weight:700;
+    display:inline-flex;align-items:center;justify-content:center}
+  .opt.correct{border-color:var(--ok);background:var(--okbg)}
+  .opt.correct .opt-n{background:var(--ok);color:#fff}
+  .opt.wrong{border-color:var(--bad);background:var(--badbg)}
+  .opt.wrong .opt-n{background:var(--bad);color:#fff}
+  .note{font-size:13px;color:var(--muted);margin-top:8px}
+
+  audio{width:100%;max-width:520px;height:36px;margin:8px 0;display:block}
+  img.q-img{max-width:100%;border:1px solid var(--line);border-radius:10px;margin:10px 0}
+  details{margin-top:10px;border:1px solid var(--line);border-radius:10px;
+    background:#fbfcfd;overflow:hidden}
+  summary{padding:8px 14px;font-size:14px;color:var(--accent);font-weight:600;
+    cursor:pointer;user-select:none}
+  .sub{padding:6px 18px 14px;font-size:14px;border-top:1px solid var(--line)}
+  .sub p{margin:0 0 8px}.sub p:last-child{margin:0}
+
+  #drop{border:2px dashed #c7d2fe;border-radius:16px;background:#fff;
+    padding:50px 20px;text-align:center;color:var(--muted);margin:40px auto;
+    max-width:640px;cursor:pointer;transition:.15s}
+  #drop.hover{background:var(--soft);border-color:var(--accent)}
+  .hidden{display:none!important}
+
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr;padding-top:12px}
+    .toc{position:static}.toc a{display:inline-block}
+    .section{padding:16px}
+    .stat{margin-left:0;width:100%}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <h1>JLPT N2 题库</h1>
+    <select id="examSel" title="选择套题"></select>
+    <input type="search" id="search" placeholder="搜索题目…">
+    <button class="btn ghost" id="btnAll">显示全部答案</button>
+    <button class="btn ghost" id="btnReset">清空作答</button>
+    <span class="stat" id="stat"></span>
+  </div>
+</header>
+
+<div id="drop">
+  <p style="font-size:16px;color:var(--ink);margin:0 0 6px">把 JSON 文件拖到这里</p>
+  <p style="margin:0 0 16px">或点击选择（音频/图片需另选整个文件夹）</p>
+  <button class="btn" id="btnFile">选择 JSON 文件</button>
+  <button class="btn ghost" id="btnDir">选择整个文件夹</button>
+</div>
+
+<input type="file" id="fileInput" accept=".json" multiple class="hidden">
+<input type="file" id="dirInput" webkitdirectory multiple class="hidden">
+
+<div class="layout hidden" id="layout">
+  <aside class="toc" id="toc"></aside>
+  <main id="content"></main>
+</div>
+
+<script>
+/* ============ 状态 ============ */
+const S = {
+  exams: [],              // [{name, dir, data}]
+  assets: new Map(),      // 相对路径 -> File
+  cur: null,
+  answers: JSON.parse(localStorage.getItem('jlpt-answers') || '{}'),
+  showAll: false,
+  query: ''
+};
+const $ = id => document.getElementById(id);
+
+/* ============ 加载 ============ */
+function relPath(f){
+  const p = f.webkitRelativePath || f.name;
+  const parts = p.split('/');
+  if (parts.length > 1) parts.shift();   // 去掉根文件夹名
+  return parts.join('/');
+}
+const dirOf = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+
+async function ingest(fileList){
+  const files = Array.from(fileList);
+  const jsons = files.filter(f => /\.json$/i.test(f.name));
+  const others = files.filter(f => !/\.json$/i.test(f.name));
+
+  S.assets.clear();
+  others.forEach(f => S.assets.set(relPath(f), f));
+
+  for (const f of jsons){
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data.sections) continue;
+      S.exams.push({
+        name: (data.base && data.base.title) || f.name.replace(/\.json$/i,''),
+        dir: dirOf(relPath(f)),
+        data
+      });
+    } catch(e){ console.warn('解析失败', f.name, e); }
+  }
+
+  if (!S.exams.length){ alert('没有读到有效的题库 JSON'); return; }
+
+  S.exams.sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+  $('drop').classList.add('hidden');
+  $('layout').classList.remove('hidden');
+
+  const sel = $('examSel');
+  sel.innerHTML = S.exams.map((e,i)=>`<option value="${i}">${e.name}</option>`).join('');
+  sel.value = S.exams.length - 1;
+  S.cur = S.exams[sel.value];
+  render();
+}
+
+/* ============ 媒体解析 ============ */
+function mediaUrl(rel){
+  if (!rel) return null;
+  // 1) File API
+  let hit = S.assets.get(rel);
+  if (!hit){                       // 后缀模糊匹配
+    const ks = [...S.assets.keys()].filter(k => k.endsWith(rel));
+    if (ks.length === 1) hit = S.assets.get(ks[0]);
+  }
+  if (hit) return URL.createObjectURL(hit);
+  // 2) 本地服务器：直接用相对路径
+  if (location.protocol !== 'file:') return rel;
+  return null;                     // file:// 且未选文件夹
+}
+
+/* ============ 渲染 ============ */
+function esc(s){ return String(s).replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let counter = 0;
+
+function renderQuestion(q, subLabel){
+  const el = document.createElement('div');
+  el.className = 'q';
+  counter++;
+
+  // 题干
+  const head = document.createElement('div');
+  head.className = 'q-head';
+  const label = subLabel ? `${counter}<small style="font-size:11px;opacity:.75"> ${subLabel}</small>` : counter;
+  head.innerHTML =
+    `<span class="q-num">${label}</span>
+     <div class="q-title">${q.title || ''}</div>`;
+  el.appendChild(head);
+
+  // 图片
+  if (q.image){
+    const u = mediaUrl(q.image);
+    if (u){
+      const img = document.createElement('img');
+      img.className = 'q-img'; img.src = u; img.alt = '题目图片';
+      el.appendChild(img);
+    } else {
+      el.insertAdjacentHTML('beforeend',
+        `<div class="note">📷 图片未加载：${esc(q.image)}（请选择文件夹）</div>`);
+    }
+  }
+
+  // 音频
+  if (q.audio){
+    const u = mediaUrl(q.audio);
+    if (u){
+      const au = document.createElement('audio');
+      au.controls = true; au.preload = 'none'; au.src = u;
+      el.appendChild(au);
+    } else {
+      el.insertAdjacentHTML('beforeend',
+        `<div class="note">🔊 音频未加载：${esc(q.audio)}（请选择整个文件夹）</div>`);
+    }
+  }
+
+  // 听力原文
+  if (q.subtitle){
+    const d = document.createElement('details');
+    d.innerHTML = `<summary>听力原文</summary><div class="sub">${q.subtitle}</div>`;
+    el.appendChild(d);
+  }
+
+  // 选项
+  if (Array.isArray(q.options) && q.options.length){
+    const placeholder = q.options.every(o => /^[1-4]$/.test(String(o).trim()));
+    if (placeholder){
+      el.insertAdjacentHTML('beforeend',
+        `<div class="note">※ 本题选项在音频中，请听完后选择 1 / 2 / 3 / 4。</div>`);
+    }
+    const box = document.createElement('div');
+    box.className = 'options';
+    const key = q.identity;
+    const chosen = S.answers[key];
+
+    q.options.forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.className = 'opt';
+      b.dataset.idx = i;
+      b.innerHTML = `<span class="opt-n">${i+1}</span>
+                     <span class="opt-t">${placeholder ? '选项 ' + (i+1) : opt}</span>`;
+      b.addEventListener('click', () => {
+        if (S.answers[key] !== undefined) return;   // 已答锁定
+        S.answers[key] = i;
+        localStorage.setItem('jlpt-answers', JSON.stringify(S.answers));
+        paint(box, q, i);
+        updateStat();
+      });
+      box.appendChild(b);
+    });
+    el.appendChild(box);
+
+    if (chosen !== undefined || S.showAll) paint(box, q, chosen);
+    else box.dataset.pending = '1';
+  }
+
+  return el;
+}
+
+function paint(box, q, chosen){
+  const ans = Number(q.answer);
+  box.querySelectorAll('.opt').forEach(b => {
+    const i = Number(b.dataset.idx);
+    b.classList.remove('correct','wrong');
+    if (i === ans) b.classList.add('correct');
+    else if (i === chosen) b.classList.add('wrong');
+  });
+}
+
+function render(){
+  const exam = S.cur;
+  const content = $('content');
+  const toc = $('toc');
+  content.innerHTML = ''; toc.innerHTML = '';
+  counter = 0;
+
+  const q = S.query.trim();
+
+  exam.data.sections.forEach((sec, si) => {
+    const secEl = document.createElement('section');
+    secEl.className = 'section';
+    secEl.id = 'sec-' + si;
+
+    const h = document.createElement('h2');
+    h.className = 'section-title';
+    h.textContent = sec.title || '';
+    secEl.appendChild(h);
+
+    let rendered = 0;
+    (sec.questions || []).forEach(node => {
+      // 组题：本身带 questions 数组
+      if (Array.isArray(node.questions) && node.questions.length){
+        const wrap = document.createElement('div');
+        // 父级（文章/音频/图片）
+        const parent = renderQuestion({...node, options:null}, '');
+        parent.querySelector('.q-num').style.visibility = 'hidden';
+        counter--;                                    // 组题父级不占号
+        wrap.appendChild(parent);
+        node.questions.forEach((child, ci) => {
+          const c = renderQuestion(child, `問${ci+1}`);
+          if (q && !(child.title || '').includes(q) && !JSON.stringify(child.options||[]).includes(q)){
+            c.remove(); return;
+          }
+          wrap.appendChild(c); rendered++;
+        });
+        secEl.appendChild(wrap);
+      } else {
+        if (q && !(node.title || '').includes(q) && !JSON.stringify(node.options||[]).includes(q)) return;
+        secEl.appendChild(renderQuestion(node, ''));
+        rendered++;
+      }
+    });
+
+    if (rendered === 0 && q) return;   // 搜索过滤后空 section 不显示
+
+    content.appendChild(secEl);
+
+    const a = document.createElement('a');
+    a.href = '#sec-' + si;
+    a.textContent = (sec.title || `第${si+1}問`).slice(0, 22).replace(/\s+/g,' ');
+    toc.appendChild(a);
+  });
+
+  updateStat();
+}
+
+/* ============ 统计 ============ */
+function updateStat(){
+  if (!S.cur) return;
+  let total = 0, done = 0, right = 0;
+  S.cur.data.sections.forEach(sec => (sec.questions||[]).forEach(node => {
+    const list = (node.questions && node.questions.length) ? node.questions : [node];
+    list.forEach(q => {
+      if (!q.options) return;
+      total++;
+      const a = S.answers[q.identity];
+      if (a !== undefined){
+        done++;
+        if (a === Number(q.answer)) right++;
+      }
+    });
+  }));
+  $('stat').textContent =
+    `已答 ${done}/${total}` + (done ? `　正确率 ${Math.round(right/done*100)}%` : '');
+}
+
+/* ============ 事件 ============ */
+$('btnFile').onclick = () => $('fileInput').click();
+$('btnDir').onclick  = () => $('dirInput').click();
+$('fileInput').onchange = e => ingest(e.target.files);
+$('dirInput').onchange  = e => ingest(e.target.files);
+
+$('drop').onclick = e => { if (e.target === $('drop')) $('fileInput').click(); };
+['dragenter','dragover'].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('hover'); }));
+['dragleave','drop'].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('hover'); }));
+document.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) ingest(e.dataTransfer.files);
+});
+
+$('examSel').onchange = e => {
+  S.cur = S.exams[e.target.value];
+  render();
+};
+
+$('btnAll').onclick = () => {
+  S.showAll = !S.showAll;
+  $('btnAll').textContent = S.showAll ? '隐藏答案' : '显示全部答案';
+  render();
+};
+
+$('btnReset').onclick = () => {
+  if (!confirm('清空所有作答记录？')) return;
+  S.answers = {};
+  localStorage.removeItem('jlpt-answers');
+  render();
+};
+
+let t;
+$('search').oninput = e => {
+  clearTimeout(t);
+  t = setTimeout(() => { S.query = e.target.value; render(); }, 200);
+};
+</script>
+</body>
+</html>
