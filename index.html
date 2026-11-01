@@ -402,6 +402,47 @@ $('search').oninput = e => {
   clearTimeout(t);
   t = setTimeout(() => { S.query = e.target.value; render(); }, 200);
 };
+/* ===== 自动发现题库（GitHub Pages 模式）===== */
+(async function bootstrap(){
+  if (location.protocol === 'file:') return;          // 本地文件模式跳过
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  if (!m) return;                                      // 不是 GitHub Pages
+  const user = m[1];
+  const repo = location.pathname.split('/').filter(Boolean)[0];
+  if (!repo) return;
+
+  try {
+    const api = `https://api.github.com/repos/${user}/${repo}/contents/`;
+    const r = await fetch(api);
+    if (!r.ok) return;
+    const items = await r.json();
+    const jsons = items.filter(i => i.type === 'file' && /\.json$/i.test(i.name));
+
+    for (const it of jsons){
+      try {
+        const resp = await fetch(it.download_url);
+        const data = await resp.json();
+        if (!data.sections) continue;
+        S.exams.push({
+          name: (data.base && data.base.title) || it.name.replace(/\.json$/i,''),
+          dir: '',
+          data
+        });
+      } catch(e){ console.warn('skip', it.name, e); }
+    }
+
+    if (S.exams.length){
+      S.exams.sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+      $('drop').classList.add('hidden');
+      $('layout').classList.remove('hidden');
+      const sel = $('examSel');
+      sel.innerHTML = S.exams.map((e,i)=>`<option value="${i}">${e.name}</option>`).join('');
+      sel.value = S.exams.length - 1;
+      S.cur = S.exams[sel.value];
+      render();
+    }
+  } catch(e){ console.warn('autoDiscover failed', e); }
+})();
 </script>
 </body>
 </html>
